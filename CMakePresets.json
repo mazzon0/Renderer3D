@@ -1,0 +1,81 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+      "major": 3,
+      "minor": 21
+    },
+    "configurePresets": [
+      {
+        "name": "windows-debug",
+        "hidden": false,
+        "description": "Windows Debug Build",
+        "generator": "Ninja",
+        "binaryDir": "${sourceDir}/build/windows-debug",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Debug",
+          "_BUILD_TYPE": "Debug",
+          "_PLATFORM": "Windows"
+        },
+        "condition": {
+          "type": "equals",
+          "lhs": "${hostSystemName}", 
+          "rhs": "Windows"
+        }
+      },
+      {
+        "name": "windows-profile",
+        "hidden": false,
+        "description": "Windows Profile Build",
+        "generator": "Ninja",
+        "binaryDir": "${sourceDir}/build/windows-profile",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Release",
+          "_BUILD_TYPE": "Profile",
+          "_PLATFORM": "Windows"
+        },
+        "condition": {
+          "type": "equals",
+          "lhs": "${hostSystemName}",
+          "rhs": "Windows"
+        }
+      },
+      {
+        "name": "windows-release",
+        "hidden": false,
+        "description": "Windows Release Build",
+        "generator": "Ninja",
+        "binaryDir": "${sourceDir}/build/windows-release",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Release",
+          "_BUILD_TYPE": "Release",
+          "_PLATFORM": "Windows"
+        },
+        "condition": {
+          "type": "equals",
+          "lhs": "${hostSystemName}",
+          "rhs": "Windows"
+        }
+      }
+    ],
+    "buildPresets": [
+      {
+        "name": "windbg",
+        "configurePreset": "windows-debug",
+        "description": "Build using the Windows debug configuration preset",
+        "jobs": 4
+      },
+      {
+        "name": "winprf",
+        "configurePreset": "windows-profile",
+        "description": "Build using the Windows profile configuration preset",
+        "jobs": 4
+      },
+      {
+        "name": "winrel",
+        "configurePreset": "windows-release",
+        "description": "Build using the Windows release configuration preset",
+        "jobs": 4
+      }
+    ]
+  }
+  
