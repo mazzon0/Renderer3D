@@ -3,6 +3,7 @@
 
 void SceneLoader::load(const std::string filename) {
     m_loaded = true;
+    m_folder = filename.substr(0, filename.find_last_of("/\\"));
     Assimp::Importer importer;
 
     /* TODO: check flags documentation */
@@ -20,6 +21,7 @@ void SceneLoader::load(const std::string filename) {
     // TODO: Open scene data and save to entity 0
 
     loadAllMeshes(scene);
+    loadAllMaterials(scene);
 
     loadEntities(scene->mRootNode, scene, 0);
 }
@@ -32,12 +34,14 @@ void SceneLoader::saveBin(const std::string filename) {
 }
 
 void SceneLoader::saveText(const std::string filename) {
+    m_saved = true;
     saveHeavyData(filename);
     saveSceneYaml(filename);
 }
 
 void SceneLoader::loadAllMeshes(const aiScene* scene) {
     std::cout << "Loading " << scene->mNumMeshes << " meshes" << std::endl;
+    m_meshes.reserve(scene->mNumMeshes);
     for(size_t i=0; i<scene->mNumMeshes; ++i) {
         loadMesh(scene->mMeshes[i], i);
     }
@@ -69,6 +73,7 @@ void SceneLoader::loadMesh(const aiMesh* mesh, unsigned int index) {
     // other data
     mfd.index = index;
     mfd.code = randomEntity();
+    mfd.materialIndex = mesh->mMaterialIndex;
 
     m_meshes.emplace_back(mfd);
 }
@@ -84,12 +89,91 @@ void SceneLoader::loadVertex(const aiVector3D& pos, const aiVector3D& texCoords,
     mesh.m_vertices.emplace_back(v);
 }
 
+void SceneLoader::loadAllMaterials(const aiScene* scene) {
+    std::cout << "Loading " << scene->mNumMaterials << " materials" << std::endl;
+    m_textures.reserve(scene->mNumMaterials);
+    for(size_t i=0; i<scene->mNumMaterials; ++i) {
+        loadMaterial(scene->mMaterials[i], i);
+    }
+}
+
+void SceneLoader::loadMaterial(const aiMaterial* material, unsigned int index) {
+    MaterialFindData mfd;
+    mfd.index = index;
+
+    int nAlbedo = material->GetTextureCount(aiTextureType_BASE_COLOR);
+    int nNormal = material->GetTextureCount(aiTextureType_NORMAL_CAMERA);
+    int nEmissive = material->GetTextureCount(aiTextureType_EMISSION_COLOR);
+    int nMetalness = material->GetTextureCount(aiTextureType_METALNESS);
+    int nRoughness = material->GetTextureCount(aiTextureType_DIFFUSE_ROUGHNESS);
+    //int nAmbientOcclusion = material->GetTextureCount(aiTextureType_AMBIENT_OCCLUSION);
+    /* TODO: add ambient occlusion for static scenes? */
+    /* TODO: add other texture types, such as sheen, cloarcoat and transmission? */
+    
+    /* TODO: fix normal importing and metalness-roughness channels */
+    /* TODO: what about the textures over index 0? */
+    /* TODO: add white texture when not present */
+    aiString path;
+    if(nAlbedo > 0) {
+        material->GetTexture(aiTextureType_BASE_COLOR, 0, &path);
+        mfd.albedoPath = path.C_Str();
+        if(!isTextureLoaded(mfd.albedoPath)) {
+            m_textures.emplace_back(mfd.albedoPath);
+        }
+    }
+
+    if(nNormal > 0) {
+        material->GetTexture(aiTextureType_NORMAL_CAMERA, 0, &path);
+        mfd.normalPath = path.C_Str();
+        if(!isTextureLoaded(mfd.normalPath)) {
+            m_textures.emplace_back(mfd.normalPath);
+        }
+    }
+
+    if(nEmissive > 0) {
+        material->GetTexture(aiTextureType_EMISSION_COLOR, 0, &path);
+        mfd.emissionPath = path.C_Str();
+        if(!isTextureLoaded(mfd.emissionPath)) {
+            m_textures.emplace_back(mfd.emissionPath);
+        }
+    }
+
+    if(nMetalness > 0) {
+        material->GetTexture(aiTextureType_METALNESS, 0, &path);
+        mfd.metalnessPath = path.C_Str();
+        if(!isTextureLoaded(mfd.metalnessPath)) {
+            m_textures.emplace_back(mfd.metalnessPath);
+        }
+    }
+
+    if(nRoughness > 0) {
+        material->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS, 0, &path);
+        mfd.roughnessPath = path.C_Str();
+        if(!isTextureLoaded(mfd.roughnessPath)) {
+            m_textures.emplace_back(mfd.roughnessPath);
+        }
+    }
+
+    m_materials.emplace_back(mfd);
+}
+
+bool SceneLoader::isTextureLoaded(const std::string& path) {
+    for(size_t i=0; i<m_textures.size(); ++i) {
+        if(m_textures[i].compare(path) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void SceneLoader::loadEntities(const aiNode* node, const aiScene* scene, Entity parent) {
     Entity entity;
     std::cout << "Loading " << node->mNumMeshes << " entities" << std::endl;
     for(size_t i=0; i<node->mNumMeshes; ++i) {
         entity = randomEntity();
         loadEntity(node->mMeshes[i], parent, entity);
+        
     }
 
     for(size_t i=0; i<node->mNumChildren; ++i) {
@@ -108,24 +192,48 @@ void SceneLoader::loadEntity(unsigned int meshIndex, Entity parent, Entity entit
     
     // Mesh component
     MeshComponent meshComp;
-    meshComp.code = getMeshCode(meshIndex);
+    const MeshFindData& mfd = getMesh(meshIndex);
+    meshComp.code = mfd.code;
     m_componentSystem.add<MeshComponent>(entity, meshComp);
+
+    // Material component
+    MaterialComponent materialComp;
+    const MaterialFindData& mat = getMaterial(mfd.materialIndex);
+    materialComp.albedoPath = mat.albedoPath;
+    materialComp.normalPath = mat.normalPath;
+    materialComp.emissionPath = mat.emissionPath;
+    materialComp.metalnessPath = mat.metalnessPath;
+    materialComp.roughnessPath = mat.roughnessPath;
+    m_componentSystem.add<MaterialComponent>(entity, materialComp);
 }
 
-MeshCode SceneLoader::getMeshCode(unsigned int meshIndex) {
+const MeshFindData& SceneLoader::getMesh(unsigned int meshIndex) {
     for(size_t i=0; i<m_meshes.size(); ++i) {
         if(m_meshes[i].index == meshIndex) {
-            return m_meshes[i].code;
+            return m_meshes[i];
         }
     }
 
-    std::cout << "ERROR: mesh index " << meshIndex << " not found" << std::endl;
+    std::cout << "ERROR: mesh index " << meshIndex << " not found in meshes" << std::endl;
     m_loaded = false;
-    return 0;
+    return m_meshes[0];
+}
+
+const MaterialFindData& SceneLoader::getMaterial(unsigned int materialIndex) {
+    for(size_t i=0; i<m_materials.size(); ++i) {
+        if(m_materials[i].index == materialIndex) {
+            return m_materials[i];
+        }
+    }
+
+    std::cout << "ERROR: material index " << materialIndex << " not found in materials" << std::endl;
+    m_loaded = false;
+    return m_materials[0];
 }
 
 Entity SceneLoader::randomEntity() {
     /* TODO: make those variables static? */
+    /* TODO: avoid repetitions and 0? */
     std::random_device rd;
     std::mt19937_64 e2(rd());
     std::uniform_int_distribution<uint64_t> dist;
@@ -134,16 +242,21 @@ Entity SceneLoader::randomEntity() {
 
 void SceneLoader::saveHeavyData(const std::string& filename) {
     std::string folder = filename.substr(0, filename.find_last_of("/\\"));
-    std::filesystem::create_directory(folder);
+    std::filesystem::create_directory(folder + "/meshes/");
+    std::filesystem::create_directory(folder + "/textures/");
+
     for(MeshFindData& mesh : m_meshes) {
         saveMesh(mesh, folder);
     }
 
-    /* TODO: textures */
+    for(std::string& texture : m_textures) {
+        copyTextureFile(texture, folder);
+    }
 }
 
 void SceneLoader::saveMesh(MeshFindData& mesh, const std::string& folder) {
     // File opening
+    /* TODO: save with names, not code */
     std::ostringstream o;
     o << mesh.code;
     std::string code = o.str();
@@ -151,6 +264,7 @@ void SceneLoader::saveMesh(MeshFindData& mesh, const std::string& folder) {
     file.open(folder + "/meshes/" + code + ".mb3d", std::ios::binary);
     if(!file.good()) {
         std::cout << "ERROR: failed to open the mesh file: " << folder + "/meshes/" + code + ".mb3d" << std::endl;
+        m_saved = false;
         return;
     }
 
@@ -166,6 +280,29 @@ void SceneLoader::saveMesh(MeshFindData& mesh, const std::string& folder) {
     file.close();
 }
 
+void SceneLoader::copyTextureFile(const std::string& texturePath, const std::string& dstFolder) {
+    size_t charIndex = texturePath.find_last_of("/\\") + 1;
+    std::string filename = texturePath.substr(charIndex, texturePath.size() - charIndex);
+    std::ofstream dst(dstFolder + "/textures/" + filename, std::ios::binary);
+    std::ifstream src(m_folder + "/" + texturePath, std::ios::binary);
+
+    if(!dst.is_open()) {
+        std::cout << "ERROR: failed to open the destination file: " << dstFolder + "/textures/" + filename << std::endl;
+        m_saved = false;
+        return;
+    }
+    if(!src.is_open()) {
+        std::cout << "ERROR: failed to open the source file: " << m_folder + "/" + texturePath << std::endl;
+        m_saved = false;
+        return;
+    }
+
+    dst << src.rdbuf();
+
+    dst.close();
+    src.close();
+}
+
 void SceneLoader::saveSceneYaml(const std::string& filename) {
     YAML::Emitter emitter;
     emitter << YAML::BeginSeq;
@@ -178,12 +315,14 @@ void SceneLoader::saveSceneYaml(const std::string& filename) {
 
     if(!emitter.good()) {
         std::cout << "ERROR: failed scene \'" << filename << "\' text encoding with the sequent error: " << emitter.GetLastError() << std::endl;
+        m_saved = false;
         return;
     }
 
     std::ofstream file(filename);
     if(!file.good()) {
         std::cout << "ERROR: failed to save the scene in: " << filename << std::endl;
+        m_saved = false;
         return;
     }
 
@@ -208,6 +347,18 @@ void SceneLoader::emitEntity(Entity entity, YAML::Emitter& emitter) {
         emitter << YAML::Value << YAML::BeginMap;
         emitter << YAML::Key << "code";
         emitter << YAML::Value << m_componentSystem.get<MeshComponent>(entity).code;
+        emitter << YAML::EndMap;
+    }
+
+    if(m_componentSystem.hasComponent<MaterialComponent>(entity)) {
+        MaterialComponent material = m_componentSystem.get<MaterialComponent>(entity);
+        emitter << YAML::Key << "material";
+        emitter << YAML::Value << YAML::BeginMap;
+        emitter << YAML::Key << "albedo" << YAML::Value << material.albedoPath;
+        emitter << YAML::Key << "normal" << YAML::Value << material.normalPath;
+        emitter << YAML::Key << "emission" << YAML::Value << material.emissionPath;
+        emitter << YAML::Key << "metalness" << YAML::Value << material.metalnessPath;
+        emitter << YAML::Key << "roughness" << YAML::Value << material.roughnessPath;
         emitter << YAML::EndMap;
     }
 

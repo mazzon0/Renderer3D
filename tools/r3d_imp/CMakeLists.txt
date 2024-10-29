@@ -1,6 +1,4 @@
-file(GLOB_RECURSE IMP_SRC_FILES "*.cpp")
-
-add_executable(r3d_imp "${IMP_SRC_FILES}")
+add_executable(r3d_imp "pch.cpp" "r3d_imp.cpp" "SceneLoader.cpp")
 
 target_link_libraries(r3d_imp PRIVATE glm assimp yaml-cpp)
 target_include_directories(r3d_imp PRIVATE

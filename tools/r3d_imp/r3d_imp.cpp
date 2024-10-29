@@ -8,8 +8,8 @@
 */
 
 int main(int argc, char* argv[]) {
-    if(argc<4) {
-        std::cout << "ERROR: not enough arguments" << std::endl;
+    if(argc != 4) {
+        std::cout << "ERROR: invalid number of arguments" << std::endl;
         return -1;
     }
 

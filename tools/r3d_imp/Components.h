@@ -23,7 +23,11 @@ struct MeshComponent {
 };
 
 struct MaterialComponent {
-
+    std::string albedoPath;
+    std::string emissionPath;
+    std::string normalPath;
+    std::string metalnessPath;
+    std::string roughnessPath;
 };
 
 struct LightComponent {
