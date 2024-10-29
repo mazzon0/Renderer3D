@@ -1,7 +1,7 @@
 #include "Application.h"
 
 int main(int argc, char* argv[]) {
-    Application::init(argv[0]);
+    Application::init(argc, argv);
     Application::run();
     Application::close();
 }

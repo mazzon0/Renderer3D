@@ -1,6 +1,7 @@
 #ifndef _EVENTS
 #define _EVENTS
 
+#include <stdint.h>
 #include <vector>
 #include <string>
 

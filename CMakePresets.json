@@ -12,6 +12,8 @@
         "generator": "Ninja",
         "binaryDir": "${sourceDir}/build/windows-debug",
         "cacheVariables": {
+          "CMAKE_C_COMPILER": "C:/CompilersC++/mingw32/bin/gcc.exe",
+          "CMAKE_CXX_COMPILER": "C:/CompilersC++/mingw32/bin/g++.exe",
           "CMAKE_BUILD_TYPE": "Debug",
           "_BUILD_TYPE": "Debug",
           "_PLATFORM": "Windows"

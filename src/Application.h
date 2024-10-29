@@ -5,14 +5,14 @@
 
 class Application {
 public: /* TODO: keep or remove inlines? */
-    static inline void init(const char* exePath) { getInstance().iInit(exePath); }
+    static inline void init(int nArgs, char* args[]) { getInstance().iInit(nArgs, args); }
     static inline void run() { getInstance().iRun();}
     static inline void exit() { getInstance().iExit();}
 
     static inline void close() { getInstance().iClose(); }
 
 private:
-    void iInit(const char* exePath);
+    void iInit(int nArgs, char* args[]);
     void iRun();
     void iExit();
     void iClose() { m_running = false; }
