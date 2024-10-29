@@ -32,13 +32,13 @@ private:
 
     void loadAllMeshes(const aiScene* scene);
     void loadMesh(const aiMesh* mesh, unsigned int index);
-    void loadVertex(const aiVector3D& vertex, Mesh& mesh);
+    void loadVertex(const aiVector3D& pos, const aiVector3D& texCoords, const aiVector3D& normal, const aiVector3D& tangent, const aiVector3D& bitangent, Mesh& mesh);
     void loadEntities(const aiNode* node, const aiScene* scene, Entity parent);
     void loadEntity(unsigned int meshIndex, Entity parent, Entity entity);
     MeshCode getMeshCode(unsigned int meshIndex);
     Entity randomEntity();
     void saveHeavyData(const std::string& filename);
-    void saveMesh(const MeshFindData& mesh, const std::string& folder);
+    void saveMesh(MeshFindData& mesh, const std::string& folder);
     void saveSceneYaml(const std::string& filename);
     void emitEntity(Entity entity, YAML::Emitter& emitter);
 };

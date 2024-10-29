@@ -1,9 +1,10 @@
+#include "pch.h"
 #include <string>
 #include <iostream>
 #include "SceneLoader.h"
 
 /*
-    r3d_imp bin/text filename_with_postfix out_filename_without_postfix
+    r3d_imp bin/text path_and_filename_with_postfix path_and_out_filename_without_postfix
 */
 
 int main(int argc, char* argv[]) {

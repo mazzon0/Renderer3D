@@ -1,5 +1,5 @@
+#include "pch.h"
 #include "SceneLoader.h"
-#include "utils.pch"
 
 void SceneLoader::load(const std::string filename) {
     m_loaded = true;
@@ -19,10 +19,8 @@ void SceneLoader::load(const std::string filename) {
 
     // TODO: Open scene data and save to entity 0
 
-    // Load all meshes
     loadAllMeshes(scene);
 
-    // Bind meshes with entities
     loadEntities(scene->mRootNode, scene, 0);
 }
 
@@ -34,7 +32,7 @@ void SceneLoader::saveBin(const std::string filename) {
 }
 
 void SceneLoader::saveText(const std::string filename) {
-    //saveHeavyData(filename);
+    saveHeavyData(filename);
     saveSceneYaml(filename);
 }
 
@@ -51,7 +49,7 @@ void SceneLoader::loadMesh(const aiMesh* mesh, unsigned int index) {
     // vertices
     mfd.mesh.m_vertices.reserve(mesh->mNumVertices);
     for(size_t i=0; i < mesh->mNumVertices; ++i) {
-        loadVertex(mesh->mVertices[i], mfd.mesh);
+        loadVertex(mesh->mVertices[i], mesh->mTextureCoords[0][i], mesh->mNormals[i], mesh->mTangents[i], mesh->mBitangents[i], mfd.mesh);
     }
 
     // indices
@@ -65,7 +63,6 @@ void SceneLoader::loadMesh(const aiMesh* mesh, unsigned int index) {
 
         for(size_t j=0; j<face->mNumIndices; ++j) {
             mfd.mesh.m_indices.push_back(face->mIndices[j]);
-            //std::cout << "Index " << j << std::endl;
         }
     }
 
@@ -76,9 +73,15 @@ void SceneLoader::loadMesh(const aiMesh* mesh, unsigned int index) {
     m_meshes.emplace_back(mfd);
 }
 
-void SceneLoader::loadVertex(const aiVector3D& vertex, Mesh& m) {
-    /* TODO: implement */
-
+void SceneLoader::loadVertex(const aiVector3D& pos, const aiVector3D& texCoords, const aiVector3D& normal, const aiVector3D& tangent, const aiVector3D& bitangent, Mesh& mesh) {
+    Vertex v(
+        glm::vec3(pos.x, pos.y, pos.z),
+        glm::vec2(texCoords.x, texCoords.y),
+        glm::vec3(normal.x, normal.y, normal.z),
+        glm::vec3(tangent.x, tangent.y, tangent.z),
+        glm::vec3(bitangent.x, bitangent.y, bitangent.z));
+    
+    mesh.m_vertices.emplace_back(v);
 }
 
 void SceneLoader::loadEntities(const aiNode* node, const aiScene* scene, Entity parent) {
@@ -130,18 +133,37 @@ Entity SceneLoader::randomEntity() {
 }
 
 void SceneLoader::saveHeavyData(const std::string& filename) {
-    /* TODO: custom folder division character */
-    std::string folder = filename.substr(0, filename.find_last_of('/'));
-
+    std::string folder = filename.substr(0, filename.find_last_of("/\\"));
+    std::filesystem::create_directory(folder);
     for(MeshFindData& mesh : m_meshes) {
-        saveMesh(mesh, filename);
+        saveMesh(mesh, folder);
     }
 
     /* TODO: textures */
 }
 
-void SceneLoader::saveMesh(const MeshFindData& mesh, const std::string& folder) {
+void SceneLoader::saveMesh(MeshFindData& mesh, const std::string& folder) {
+    // File opening
+    std::ostringstream o;
+    o << mesh.code;
+    std::string code = o.str();
+    std::ofstream file;
+    file.open(folder + "/meshes/" + code + ".mb3d", std::ios::binary);
+    if(!file.good()) {
+        std::cout << "ERROR: failed to open the mesh file: " << folder + "/meshes/" + code + ".mb3d" << std::endl;
+        return;
+    }
 
+    // File writing
+    std::vector<uint32_t> header(3);
+    header[0] = 0x3d3d3d3d;
+    header[1] = mesh.mesh.m_vertices.size();
+    header[2] = mesh.mesh.m_indices.size();
+    file.write(reinterpret_cast<char*>(header.data()), sizeof(uint32_t) * header.size());
+    file.write(reinterpret_cast<char*>(mesh.mesh.m_vertices.data()), sizeof(Vertex) * mesh.mesh.m_vertices.size());
+    file.write(reinterpret_cast<char*>(mesh.mesh.m_indices.data()), sizeof(uint32_t) * mesh.mesh.m_indices.size());
+
+    file.close();
 }
 
 void SceneLoader::saveSceneYaml(const std::string& filename) {
@@ -155,15 +177,21 @@ void SceneLoader::saveSceneYaml(const std::string& filename) {
     emitter << YAML::EndSeq;
 
     if(!emitter.good()) {
-        std::cout << "ERROR: failed saving the scene " << filename << " with the sequent error: " << emitter.GetLastError() << std::endl;
+        std::cout << "ERROR: failed scene \'" << filename << "\' text encoding with the sequent error: " << emitter.GetLastError() << std::endl;
         return;
     }
 
     std::ofstream file(filename);
+    if(!file.good()) {
+        std::cout << "ERROR: failed to save the scene in: " << filename << std::endl;
+        return;
+    }
+
+    /* TODO: add custom header? */
     file << emitter.c_str();
     file.close();
 
-    std::cout << "Scene successfully saved: full_filename" << std::endl;
+    std::cout << "Scene successfully saved: " << filename << std::endl;
 }
 
 void SceneLoader::emitEntity(Entity entity, YAML::Emitter& emitter) {
